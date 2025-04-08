@@ -1,0 +1,18 @@
+[build-system]
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "acparser"
+authors = [{name = "Anwesha Das", email = "anwesha.srkr@gmail.com"}]
+license = "MIT"
+license-files = ["LICENSE"]
+dynamic = ["version", "description"]
+readme = "README.md"
+
+[project.urls]
+Home = "https://github.com/anweshadas/acparser"
+
+[project.scripts]
+acparser = "acparser:main"
+
