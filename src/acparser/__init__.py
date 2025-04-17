@@ -11,6 +11,7 @@ from identify import identify
 import requirements
 import subprocess
 import warnings
+import argparse
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -44,51 +45,71 @@ def system(cmd):
 
 def main():
     "Entry point"
-    namespace = sys.argv[1]
-    collection_name = sys.argv[2]
-    collection_version = sys.argv[3]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tarfile", help="Path to the source tarball", required=True)
+    parser.add_argument(
+        "--namespace", help="Namespace of the collection", required=True
+    )
+    parser.add_argument("--name", help="Name of the collection", required=True)
+    parser.add_argument("--version", help="Version of the collection", required=True)
+    args = parser.parse_args()
+    namespace = args.namespace
+    collection_name = args.name
+    collection_version = args.version
+    EXISTS_GALAXY = False
     with tempfile.TemporaryDirectory() as collection_dir:
-        print("Downloading collection... \n")
-        system(
+        _, _, retcode = system(
             f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
         )
-        print("Collection downloaded. \n")
-        tarfilename = os.path.join(
-            collection_dir, f"{namespace}-{collection_name}-{collection_version}.tar.gz"
-        )
+        # check the return code
+        if retcode == 0:
+            tarfilename = os.path.join(
+                collection_dir,
+                f"{namespace}-{collection_name}-{collection_version}.tar.gz",
+            )
+            if os.path.exists(tarfilename):
+                EXISTS_GALAXY = True
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            # Extract the tarball
-            export_tar(tarfilename, tmpdirname)
+    # printing the output
+    if EXISTS_GALAXY:
+        print("Source exists in galaxy.")
+    else:
+        print("Source does not exist in galaxy.")
 
-            # check runtime ansible version
-            runtime_yml = f"/{tmpdirname}/meta/runtime.yml"
-            if os.path.exists(runtime_yml):
-                with open(runtime_yml, "r") as fobj:
-                    data = yaml.load(fobj, Loader=yaml.SafeLoader)
-                    print(
-                        f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
-                    )
-            else:
-                print("runtime.yml does not exists")
+    tarfilename = args.tarfile
 
-            print("")
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Extract the tarball
+        export_tar(tarfilename, tmpdirname)
 
-            # check collection license
-            find_license(tmpdirname)
-            print("")
+        # check runtime ansible version
+        runtime_yml = f"/{tmpdirname}/meta/runtime.yml"
+        if os.path.exists(runtime_yml):
+            with open(runtime_yml, "r") as fobj:
+                data = yaml.load(fobj, Loader=yaml.SafeLoader)
+                print(
+                    f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
+                )
+        else:
+            print("runtime.yml does not exists")
 
-            # check changelog entries
-            changelog_entries(tmpdirname, collection_version)
+        print("")
 
-            # check reuirements file (find Python dependencies (if any))
-            check_reuirements(tmpdirname)
-            print("")
+        # check collection license
+        find_license(tmpdirname)
+        print("")
 
-            # find if any "community" collection is mentioned or not
-            check_community_collection(tmpdirname)
+        # check changelog entries
+        changelog_entries(tmpdirname, collection_version)
 
-            # find "bindep.txt" if any
+        # check reuirements file (find Python dependencies (if any))
+        check_reuirements(tmpdirname)
+        print("")
+
+        # find if any "community" collection is mentioned or not
+        check_community_collection(tmpdirname)
+
+        # find "bindep.txt" if any
 
 
 def find_license(source_dir):
