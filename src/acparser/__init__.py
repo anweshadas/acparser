@@ -12,6 +12,8 @@ import requirements
 import subprocess
 import warnings
 import argparse
+from typing import List, Tuple, Optional
+import json
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -56,7 +58,16 @@ def main():
     namespace = args.namespace
     collection_name = args.name
     collection_version = args.version
+
+
     EXISTS_GALAXY = False
+    REQUIRES_ANSIBLE = ""
+    LICENSE = ""
+    CHANGELOG = ""
+    REQUIREMENTS = []
+    COMMUNITY_COLLECTIONS = ""
+
+
     with tempfile.TemporaryDirectory() as collection_dir:
         _, _, retcode = system(
             f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
@@ -87,6 +98,7 @@ def main():
         if os.path.exists(runtime_yml):
             with open(runtime_yml, "r") as fobj:
                 data = yaml.load(fobj, Loader=yaml.SafeLoader)
+                REQUIRES_ANSIBLE = data['requires_ansible']
                 print(
                     f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
                 )
@@ -96,23 +108,24 @@ def main():
         print("")
 
         # check collection license
-        find_license(tmpdirname)
+        LICENSE = find_license(tmpdirname)
         print("")
 
         # check changelog entries
-        changelog_entries(tmpdirname, collection_version)
+        CHANGELOG = changelog_entries(tmpdirname, collection_version)
+
 
         # check reuirements file (find Python dependencies (if any))
-        check_reuirements(tmpdirname)
+        REQUIREMENTS = check_reuirements(tmpdirname)
         print("")
 
         # find if any "community" collection is mentioned or not
-        check_community_collection(tmpdirname)
+        COMMUNITY_COLLECTIONS = check_community_collection(tmpdirname)
 
         # find "bindep.txt" if any
 
 
-def find_license(source_dir):
+def find_license(source_dir) -> str:
     """
     It prints the guessed license from the license file.
 
@@ -124,10 +137,11 @@ def find_license(source_dir):
         if filename in license_files:
             license = identify.license_id(os.path.join(source_dir, file))
             print(f"The license as mentioned in the {file} file is {license}")
-            return
+            return license
+    return ""
 
 
-def changelog_entries(source_dir, collection_version):
+def changelog_entries(source_dir, collection_version) -> str:
     changelog_files = ["changelog", "changelog.rst", "changelog.md", "changelog.txt"]
     files = os.listdir(source_dir)
     data = ""
@@ -151,32 +165,31 @@ def changelog_entries(source_dir, collection_version):
             n = n + 1
             if n > 10:
                 break
-    print("\n".join(text))
+    return "\n".join(text)
 
 
-def check_reuirements(source_dir):
+def check_reuirements(source_dir) -> List[Tuple[str,List[str]]]:
+    result = []
     requirement_file = os.path.join(source_dir, "requirements.txt")
     if os.path.exists(requirement_file):
         with open(requirement_file, "r") as fobj:
             for req in requirements.parse(fobj):
-                for spec in req.specs:
-                    if spec[0] != ">=":
-                        print(f"{req.name} requires wrong version scheme {req.specs}")
-    else:
-        print("There is no requirements file.")
+                result.append((req.name, req.specs))
+    return result
 
-
-def check_community_collection(source_dir):
+def check_community_collection(source_dir) -> str:
     output, error, return_code = system(
         f'grep -rHnF "community." --include="*.y*l" {source_dir}'
     )
     if return_code != 0:
-        print("No community collection is used.")
+        return ""
     else:
+        result = []
         for line in output.decode("utf-8").split("\n"):
             line2 = line.lower()
             if line2.find("changelog.yml") == -1 and line2.find("changelog.yaml") == -1:
-                print(line)
+                result.append(line)
+        return "\n".join(result)
 
 
 if __name__ == "__main__":
