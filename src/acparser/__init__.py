@@ -62,12 +62,12 @@ def main():
 
     # Variable to store output from collection
 
-    EXISTS_GALAXY = False
-    REQUIRES_ANSIBLE = ""
-    LICENSE = ""
-    CHANGELOG = ""
-    REQUIREMENTS = []
-    COMMUNITY_COLLECTIONS = ""
+    exists_galaxy = False
+    ansiblecore = ""
+    license_name = ""
+    changelog_exists = ""
+    requirement_exists = []
+    community_collections = ""
 
     # checking if the collection exists in galaxy
     with tempfile.TemporaryDirectory() as collection_dir:
@@ -81,7 +81,7 @@ def main():
                 f"{namespace}-{collection_name}-{collection_version}.tar.gz",
             )
             if os.path.exists(tarfilename):
-                EXISTS_GALAXY = True
+                exists_galaxy = True
 
     # Extract the tar
 
@@ -95,37 +95,36 @@ def main():
         if os.path.exists(runtime_yml):
             with open(runtime_yml, "r") as fobj:
                 data = yaml.load(fobj, Loader=yaml.SafeLoader)
-                REQUIRES_ANSIBLE = data['requires_ansible']
+                ansiblecore = data["requires_ansible"]
         else:
-            REQUIRES_ANSIBLE = False
+            ansiblecore = False
 
         # check collection license
-        license,license_filename = find_license(tmpdirname)
+        license, license_filename = find_license(tmpdirname)
 
         # check changelog entries
-        CHANGELOG = changelog_entries(tmpdirname, collection_version)
+        changelog_exists = changelog_entries(tmpdirname, collection_version)
 
         # check reuirements file (find Python dependencies (if any))
         try:
-            REQUIREMENTS = check_requirements(tmpdirname)
+            requirement_exists = check_requirements(tmpdirname)
         except packaging.requirements.InvalidRequirement as e:
             print(e)
             sys.exit(-1)
 
         # find if any "community" collection is mentioned or not
-        COMMUNITY_COLLECTIONS = check_community_collection(tmpdirname)
+        community_collections = check_community_collection(tmpdirname)
 
         # find "bindep.txt" if any
 
-
         # printing the output
 
-        if EXISTS_GALAXY:
+        if exists_galaxy:
             print("Source exists in galaxy.")
         else:
             print("Source does not exist in galaxy.")
 
-        if REQUIRES_ANSIBLE:
+        if ansiblecore:
             print(
                 f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
             )
@@ -133,21 +132,23 @@ def main():
             print("`requires_ansible` does not exists.")
 
         if license:
-            print(f"The license as mentioned in the {license_filename} file is {license}")
+            print(
+                f"The license as mentioned in the {license_filename} file is {license}"
+            )
         else:
             print("`License` does not exists.")
-        if REQUIREMENTS:
+        if requirement_exists:
             print(requirements)
         else:
             print("There is no requirements file.")
-        if CHANGELOG:
-            print(f"This is the Changelog entry. \n {CHANGELOG} \n ")
+        if changelog_exists:
+            print(f"This is the Changelog entry. \n {changelog_exists} \n ")
         else:
             print("There is no changelog entry found for this version.")
 
-        if COMMUNITY_COLLECTIONS:
+        if community_collections:
             print("Found probable community collection usage.")
-            print(COMMUNITY_COLLECTIONS)
+            print(community_collections)
         else:
             print("Thre is no community collection dependency.")
 
@@ -165,7 +166,7 @@ def find_license(source_dir) -> str:
         filename = file.lower()
         if filename in license_files:
             license = identify.license_id(os.path.join(source_dir, file))
-            license_filename = os.path.join(source_dir,file)
+            license_filename = os.path.join(source_dir, file)
             break
     return license, license_filename
 
@@ -197,7 +198,7 @@ def changelog_entries(source_dir, collection_version) -> str:
     return "\n".join(text)
 
 
-def check_requirements(source_dir) -> List[Tuple[str,List[str]]]:
+def check_requirements(source_dir) -> List[Tuple[str, List[str]]]:
     result = []
     requirement_file = os.path.join(source_dir, "requirements.txt")
     if os.path.exists(requirement_file):
@@ -205,6 +206,7 @@ def check_requirements(source_dir) -> List[Tuple[str,List[str]]]:
             for req in requirements.parse(fobj):
                 result.append((req.name, req.specs))
     return result
+
 
 def check_community_collection(source_dir) -> str:
     output, error, return_code = system(
