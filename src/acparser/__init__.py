@@ -14,6 +14,7 @@ import warnings
 import argparse
 from typing import List, Tuple, Optional
 import json
+import packaging
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -59,6 +60,7 @@ def main():
     collection_name = args.name
     collection_version = args.version
 
+    # Variable to store output from collection
 
     EXISTS_GALAXY = False
     REQUIRES_ANSIBLE = ""
@@ -67,7 +69,7 @@ def main():
     REQUIREMENTS = []
     COMMUNITY_COLLECTIONS = ""
 
-
+    # checking if the collection exists in galaxy
     with tempfile.TemporaryDirectory() as collection_dir:
         _, _, retcode = system(
             f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
@@ -81,43 +83,34 @@ def main():
             if os.path.exists(tarfilename):
                 EXISTS_GALAXY = True
 
-    # printing the output
-    if EXISTS_GALAXY:
-        print("Source exists in galaxy.")
-    else:
-        print("Source does not exist in galaxy.")
+    # Extract the tar
 
     tarfilename = args.tarfile
-
     with tempfile.TemporaryDirectory() as tmpdirname:
-        # Extract the tarball
         export_tar(tarfilename, tmpdirname)
 
         # check runtime ansible version
+
         runtime_yml = f"/{tmpdirname}/meta/runtime.yml"
         if os.path.exists(runtime_yml):
             with open(runtime_yml, "r") as fobj:
                 data = yaml.load(fobj, Loader=yaml.SafeLoader)
                 REQUIRES_ANSIBLE = data['requires_ansible']
-                print(
-                    f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
-                )
         else:
-            print("runtime.yml does not exists")
-
-        print("")
+            REQUIRES_ANSIBLE = False
 
         # check collection license
-        LICENSE = find_license(tmpdirname)
-        print("")
+        license,license_filename = find_license(tmpdirname)
 
         # check changelog entries
         CHANGELOG = changelog_entries(tmpdirname, collection_version)
 
-
         # check reuirements file (find Python dependencies (if any))
-        REQUIREMENTS = check_reuirements(tmpdirname)
-        print("")
+        try:
+            REQUIREMENTS = check_requirements(tmpdirname)
+        except packaging.requirements.InvalidRequirement as e:
+            print(e)
+            sys.exit(-1)
 
         # find if any "community" collection is mentioned or not
         COMMUNITY_COLLECTIONS = check_community_collection(tmpdirname)
@@ -125,20 +118,56 @@ def main():
         # find "bindep.txt" if any
 
 
+        # printing the output
+
+        if EXISTS_GALAXY:
+            print("Source exists in galaxy.")
+        else:
+            print("Source does not exist in galaxy.")
+
+        if REQUIRES_ANSIBLE:
+            print(
+                f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
+            )
+        else:
+            print("`requires_ansible` does not exists.")
+
+        if license:
+            print(f"The license as mentioned in the {license_filename} file is {license}")
+        else:
+            print("`License` does not exists.")
+        if REQUIREMENTS:
+            print(requirements)
+        else:
+            print("There is no requirements file.")
+        if CHANGELOG:
+            print(f"This is the Changelog entry. \n {CHANGELOG} \n ")
+        else:
+            print("There is no changelog entry found for this version.")
+
+        if COMMUNITY_COLLECTIONS:
+            print("Found probable community collection usage.")
+            print(COMMUNITY_COLLECTIONS)
+        else:
+            print("Thre is no community collection dependency.")
+
+
 def find_license(source_dir) -> str:
     """
     It prints the guessed license from the license file.
 
     """
+    license = ""
+    license_filename = ""
     license_files = ["license", "license.rst", "license.md", "license.txt", "copying"]
     files = os.listdir(source_dir)
     for file in files:
         filename = file.lower()
         if filename in license_files:
             license = identify.license_id(os.path.join(source_dir, file))
-            print(f"The license as mentioned in the {file} file is {license}")
-            return license
-    return ""
+            license_filename = os.path.join(source_dir,file)
+            break
+    return license, license_filename
 
 
 def changelog_entries(source_dir, collection_version) -> str:
@@ -168,7 +197,7 @@ def changelog_entries(source_dir, collection_version) -> str:
     return "\n".join(text)
 
 
-def check_reuirements(source_dir) -> List[Tuple[str,List[str]]]:
+def check_requirements(source_dir) -> List[Tuple[str,List[str]]]:
     result = []
     requirement_file = os.path.join(source_dir, "requirements.txt")
     if os.path.exists(requirement_file):
