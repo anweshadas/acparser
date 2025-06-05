@@ -138,7 +138,7 @@ def main():
         else:
             print("`License` does not exists.")
         if requirement_exists:
-            print(requirements)
+            print(f"Here are the requirements for the project. {requirement_exists}")
         else:
             print("There is no requirements file.")
         if changelog_exists:
