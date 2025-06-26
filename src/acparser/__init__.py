@@ -46,6 +46,70 @@ def system(cmd):
     return out, err, ret.returncode
 
 
+def process_collection(namespace, collection_name, collection_version, tarfilename):
+    """Returns the dictionary containing various metadata of the collection."""
+
+    # Variable to store output from collection
+    result = {}
+
+    result["exists_galaxy"] = False
+    result["ansiblecore"] = ""
+    result["license"] = ""
+    result["license_filename"] = ""
+    result["changelog_exists"] = ""
+    result["requirement_exists"] = []
+    result["community_collections"] = ""
+
+    # checking if the collection exists in galaxy
+    with tempfile.TemporaryDirectory() as collection_dir:
+        _, _, retcode = system(
+            f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
+        )
+        # check the return code
+        if retcode == 0:
+            tarfilename = os.path.join(
+                collection_dir,
+                f"{namespace}-{collection_name}-{collection_version}.tar.gz",
+            )
+            if os.path.exists(tarfilename):
+                result["exists_galaxy"] = True
+
+    # Extract the tar
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        export_tar(tarfilename, tmpdirname)
+
+        # check runtime ansible version
+
+        runtime_yml = f"/{tmpdirname}/meta/runtime.yml"
+        if os.path.exists(runtime_yml):
+            with open(runtime_yml, "r") as fobj:
+                data = yaml.load(fobj, Loader=yaml.SafeLoader)
+                result["ansiblecore"] = data["requires_ansible"]
+        else:
+            result["ansiblecore"] = False
+
+        # check collection license
+        result["license"], result["license_filename"] = find_license(tmpdirname)
+
+        # check changelog entries
+        result["changelog_exists"] = changelog_entries(tmpdirname, collection_version)
+
+        # check reuirements file (find Python dependencies (if any))
+        try:
+            result["requirement_exists"] = check_requirements(tmpdirname)
+        except packaging.requirements.InvalidRequirement as e:
+            print(e)
+            sys.exit(-1)
+
+        # find if any "community" collection is mentioned or not
+        result["community_collections"] = check_community_collection(tmpdirname)
+
+        # find "bindep.txt" if any
+
+    return result
+
+
 def main():
     "Entry point"
     parser = argparse.ArgumentParser()
@@ -60,97 +124,46 @@ def main():
     collection_name = args.name
     collection_version = args.version
 
-    # Variable to store output from collection
+    # printing the output
 
-    exists_galaxy = False
-    ansiblecore = ""
-    license_name = ""
-    changelog_exists = ""
-    requirement_exists = []
-    community_collections = ""
+    result = process_collection(
+        namespace, collection_name, collection_version, args.tarfile
+    )
 
-    # checking if the collection exists in galaxy
-    with tempfile.TemporaryDirectory() as collection_dir:
-        _, _, retcode = system(
-            f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
+    if result["exists_galaxy"]:
+        print("Source exists in galaxy.")
+    else:
+        print("Source does not exist in galaxy.")
+
+    if result["ansiblecore"]:
+        print(
+            f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
         )
-        # check the return code
-        if retcode == 0:
-            tarfilename = os.path.join(
-                collection_dir,
-                f"{namespace}-{collection_name}-{collection_version}.tar.gz",
-            )
-            if os.path.exists(tarfilename):
-                exists_galaxy = True
+    else:
+        print("`requires_ansible` does not exists.")
 
-    # Extract the tar
+    if result["license"]:
+        print(
+            f"The license as mentioned in the {result["license_filename"]} file is {result["license"]}"
+        )
+    else:
+        print("`License` does not exists.")
+    if result["requirement_exists"]:
+        print(
+            f"Here are the requirements for the project. {result["requirement_exists"]}"
+        )
+    else:
+        print("There is no requirements file.")
+    if result["changelog_exists"]:
+        print(f"This is the Changelog entry. \n {result["changelog_exists"]} \n ")
+    else:
+        print("There is no changelog entry found for this version.")
 
-    tarfilename = args.tarfile
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        export_tar(tarfilename, tmpdirname)
-
-        # check runtime ansible version
-
-        runtime_yml = f"/{tmpdirname}/meta/runtime.yml"
-        if os.path.exists(runtime_yml):
-            with open(runtime_yml, "r") as fobj:
-                data = yaml.load(fobj, Loader=yaml.SafeLoader)
-                ansiblecore = data["requires_ansible"]
-        else:
-            ansiblecore = False
-
-        # check collection license
-        license, license_filename = find_license(tmpdirname)
-
-        # check changelog entries
-        changelog_exists = changelog_entries(tmpdirname, collection_version)
-
-        # check reuirements file (find Python dependencies (if any))
-        try:
-            requirement_exists = check_requirements(tmpdirname)
-        except packaging.requirements.InvalidRequirement as e:
-            print(e)
-            sys.exit(-1)
-
-        # find if any "community" collection is mentioned or not
-        community_collections = check_community_collection(tmpdirname)
-
-        # find "bindep.txt" if any
-
-        # printing the output
-
-        if exists_galaxy:
-            print("Source exists in galaxy.")
-        else:
-            print("Source does not exist in galaxy.")
-
-        if ansiblecore:
-            print(
-                f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
-            )
-        else:
-            print("`requires_ansible` does not exists.")
-
-        if license:
-            print(
-                f"The license as mentioned in the {license_filename} file is {license}"
-            )
-        else:
-            print("`License` does not exists.")
-        if requirement_exists:
-            print(f"Here are the requirements for the project. {requirement_exists}")
-        else:
-            print("There is no requirements file.")
-        if changelog_exists:
-            print(f"This is the Changelog entry. \n {changelog_exists} \n ")
-        else:
-            print("There is no changelog entry found for this version.")
-
-        if community_collections:
-            print("Found probable community collection usage.")
-            print(community_collections)
-        else:
-            print("Thre is no community collection dependency.")
+    if result["community_collections"]:
+        print("Found probable community collection usage.")
+        print(result["community_collections"])
+    else:
+        print("Thre is no community collection dependency.")
 
 
 def find_license(source_dir) -> str:
