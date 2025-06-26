@@ -62,16 +62,16 @@ def process_collection(namespace, collection_name, collection_version, tarfilena
 
     # checking if the collection exists in galaxy
     with tempfile.TemporaryDirectory() as collection_dir:
-        _, _, retcode = system(
-            f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
-        )
+        cmd =  f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
+        _, _, retcode = system(cmd)
+
         # check the return code
         if retcode == 0:
-            tarfilename = os.path.join(
+            downloaded_tarfilename = os.path.join(
                 collection_dir,
                 f"{namespace}-{collection_name}-{collection_version}.tar.gz",
             )
-            if os.path.exists(tarfilename):
+            if os.path.exists(downloaded_tarfilename):
                 result["exists_galaxy"] = True
 
     # Extract the tar
@@ -137,7 +137,7 @@ def main():
 
     if result["ansiblecore"]:
         print(
-            f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {data['requires_ansible']}"
+            f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {result['ansiblecore']}"
         )
     else:
         print("`requires_ansible` does not exists.")
