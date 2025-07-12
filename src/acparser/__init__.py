@@ -19,7 +19,7 @@ import packaging
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
-def export_tar(filename, output_dir):
+def extract_tar(filename, output_dir):
     """
     Extracts the given tarball to the output directory.
 
@@ -61,11 +61,10 @@ def process_collection(namespace, collection_name, collection_version, tarfilena
     result["community_collections"] = ""
 
     # checking if the collection exists in galaxy
+
     with tempfile.TemporaryDirectory() as collection_dir:
         cmd =  f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
         _, _, retcode = system(cmd)
-
-        # check the return code
         if retcode == 0:
             downloaded_tarfilename = os.path.join(
                 collection_dir,
@@ -77,7 +76,7 @@ def process_collection(namespace, collection_name, collection_version, tarfilena
     # Extract the tar
 
     with tempfile.TemporaryDirectory() as tmpdirname:
-        export_tar(tarfilename, tmpdirname)
+        extract_tar(tarfilename, tmpdirname)
 
         # check runtime ansible version
 
@@ -123,8 +122,6 @@ def main():
     namespace = args.namespace
     collection_name = args.name
     collection_version = args.version
-
-    # printing the output
 
     result = process_collection(
         namespace, collection_name, collection_version, args.tarfile
