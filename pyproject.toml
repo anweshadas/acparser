@@ -9,6 +9,12 @@ license = "MIT"
 license-files = ["LICENSE"]
 dynamic = ["version", "description"]
 readme = "README.md"
+dependencies = [
+    "pyyaml",
+    "packaging",
+    "identify[license]",
+    "requirements-parser",
+]
 
 [project.urls]
 Home = "https://github.com/anweshadas/acparser"
