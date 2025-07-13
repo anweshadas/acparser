@@ -1,6 +1,6 @@
-"ansible collection parser"
+"Ansible collection parser for developers."
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 import sys
 import tarfile
@@ -15,6 +15,7 @@ import argparse
 from typing import List, Tuple, Optional
 import json
 import packaging
+from pprint import pprint
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -46,13 +47,16 @@ def system(cmd):
     return out, err, ret.returncode
 
 
-def process_collection(namespace, collection_name, collection_version, tarfilename):
+def process_collection(
+    namespace, collection_name, collection_version, tarfilename, check_galaxy=False
+):
     """Returns the dictionary containing various metadata of the collection."""
 
     # Variable to store output from collection
     result = {}
 
-    result["exists_galaxy"] = False
+    if check_galaxy:
+        result["exists_galaxy"] = False
     result["ansiblecore"] = ""
     result["license"] = ""
     result["license_filename"] = ""
@@ -61,17 +65,17 @@ def process_collection(namespace, collection_name, collection_version, tarfilena
     result["community_collections"] = ""
 
     # checking if the collection exists in galaxy
-
-    with tempfile.TemporaryDirectory() as collection_dir:
-        cmd =  f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
-        _, _, retcode = system(cmd)
-        if retcode == 0:
-            downloaded_tarfilename = os.path.join(
-                collection_dir,
-                f"{namespace}-{collection_name}-{collection_version}.tar.gz",
-            )
-            if os.path.exists(downloaded_tarfilename):
-                result["exists_galaxy"] = True
+    if check_galaxy:
+        with tempfile.TemporaryDirectory() as collection_dir:
+            cmd = f"ansible-galaxy collection download -n -p {collection_dir} {namespace}.{collection_name}:{collection_version}"
+            _, _, retcode = system(cmd)
+            if retcode == 0:
+                downloaded_tarfilename = os.path.join(
+                    collection_dir,
+                    f"{namespace}-{collection_name}-{collection_version}.tar.gz",
+                )
+                if os.path.exists(downloaded_tarfilename):
+                    result["exists_galaxy"] = True
 
     # Extract the tar
 
@@ -127,10 +131,11 @@ def main():
         namespace, collection_name, collection_version, args.tarfile
     )
 
-    if result["exists_galaxy"]:
-        print("Source exists in galaxy.")
-    else:
-        print("Source does not exist in galaxy.")
+    if "exists_galaxy" in result:
+        if result["exists_galaxy"]:
+            print("Source exists in galaxy.")
+        else:
+            print("Source does not exist in galaxy.")
 
     if result["ansiblecore"]:
         print(
@@ -141,26 +146,26 @@ def main():
 
     if result["license"]:
         print(
-            f"The license as mentioned in the {result["license_filename"]} file is {result["license"]}"
+            f"\nThe license as mentioned in the {result['license_filename']} file is {result['license']}"
         )
     else:
-        print("`License` does not exists.")
+        print("\n`License` does not exists.")
     if result["requirement_exists"]:
-        print(
-            f"Here are the requirements for the project. {result["requirement_exists"]}"
-        )
+        print("\nHere are the requirements for the project.")
+        for data in result["requirement_exists"]:
+            print(f"\n{data}")
     else:
-        print("There is no requirements file.")
+        print("\nThere is no requirements file.")
     if result["changelog_exists"]:
-        print(f"This is the Changelog entry. \n {result["changelog_exists"]} \n ")
+        print(f"\nThis is the Changelog entry.\n\n{result['changelog_exists']} \n ")
     else:
-        print("There is no changelog entry found for this version.")
+        print("\nThere is no changelog entry found for this version.")
 
     if result["community_collections"]:
-        print("Found probable community collection usage.")
+        print("\nFound probable community collection usage.\n")
         print(result["community_collections"])
     else:
-        print("Thre is no community collection dependency.")
+        print("\nThre is no community collection dependency.")
 
 
 def find_license(source_dir) -> str:
