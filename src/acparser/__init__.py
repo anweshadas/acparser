@@ -102,8 +102,7 @@ def process_collection(
         try:
             result["requirement_exists"] = check_requirements(tmpdirname)
         except packaging.requirements.InvalidRequirement as e:
-            print(e)
-            sys.exit(-1)
+            result["requirements_error"] = str(e)
 
         # find if any "community" collection is mentioned or not
         result["community_collections"] = check_community_collection(tmpdirname)
