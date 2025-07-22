@@ -180,7 +180,7 @@ def find_license(source_dir) -> str:
         filename = file.lower()
         if filename in license_files:
             license = identify.license_id(os.path.join(source_dir, file))
-            license_filename = os.path.join(source_dir, file)
+            license_filename = file
             break
     return license, license_filename
 
