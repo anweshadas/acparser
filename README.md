@@ -9,7 +9,7 @@ python3 -m pip install acparser
 ## Usage
 
 ```
-acparser --tarfile ~/Downloads/ansible-posix-2.0.0.tar.gz --namespace ansible --name posix  --version 2.0.0
+acparser --tarfile ~/Downloads/ansible-posix-2.0.0.tar.gz
 ```
 
 ## Usge as a Python module
@@ -21,4 +21,8 @@ result = acparser.process_collection("ansible", "posix", "2.0.0", "/home/adas/Do
 
 ## License
 
-MIT.
+GNU General Public License v3.0 or later
+
+## Copyright notice
+
+Copyright (C) 2025  Anwesha Das

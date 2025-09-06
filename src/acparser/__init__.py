@@ -1,21 +1,26 @@
 "Ansible collection parser for developers."
+# SPDX-License-Identifier: GPL-3.0-or-later
 
-__version__ = "0.3.1"
+__version__ = "1.0.0"
 
-import sys
+import argparse
+import os
+import re
+import subprocess
 import tarfile
 import tempfile
-import os
+import warnings
+from typing import List, Tuple
+
+import packaging
+import requirements
 import yaml
 from identify import identify
-import requirements
-import subprocess
-import warnings
-import argparse
-from typing import List, Tuple, Optional
-import json
-import packaging
-from pprint import pprint
+
+PACKAGE_INFO = re.compile(
+    r"^(?P<namespace>\w+)-(?P<name>\w+)-(?P<version>[0-9a-zA-Z.+-]+)\.tar\.gz$"
+)
+
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -116,15 +121,9 @@ def main():
     "Entry point"
     parser = argparse.ArgumentParser()
     parser.add_argument("--tarfile", help="Path to the source tarball", required=True)
-    parser.add_argument(
-        "--namespace", help="Namespace of the collection", required=True
-    )
-    parser.add_argument("--name", help="Name of the collection", required=True)
-    parser.add_argument("--version", help="Version of the collection", required=True)
     args = parser.parse_args()
-    namespace = args.namespace
-    collection_name = args.name
-    collection_version = args.version
+    match = PACKAGE_INFO.match(os.path.basename(args.tarfile))
+    namespace, collection_name, collection_version = match.groups()
 
     result = process_collection(
         namespace, collection_name, collection_version, args.tarfile
@@ -137,34 +136,38 @@ def main():
             print("Source does not exist in galaxy.")
 
     if result["ansiblecore"]:
-        print(
-            f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {result['ansiblecore']}"
-        )
+        print(f"\n✅ `requires_ansible` {result['ansiblecore']}")
     else:
-        print("`requires_ansible` does not exists.")
+        print("❌ `requires_ansible` does not exists.")
 
     if result["license"]:
-        print(
-            f"\nThe license as mentioned in the {result['license_filename']} file is {result['license']}"
-        )
+        print(f"✅ License found in {result['license_filename']}: {result['license']}")
     else:
-        print("\n`License` does not exists.")
+        print("❌ `License` does not exists.")
     if result["requirement_exists"]:
-        print("\nHere are the requirements for the project.")
+        clean_requirement = True
+
         for data in result["requirement_exists"]:
-            print(f"\n{data}")
+            for value in data[1]:
+                if "<" in value[0] or value[0] == "==":
+                    print(
+                        f"❌ Requirement with upper boundary {data[0]} {value[0]} {value[1]}"
+                    )
+                    clean_requirement = False
+        if clean_requirement:
+            print("✅ Requirements are without upper boundary.")
     else:
-        print("\nThere is no requirements file.")
+        print("✅ No requirements found.")
     if result["changelog_exists"]:
-        print(f"\nThis is the Changelog entry.\n\n{result['changelog_exists']} \n ")
+        print("✅ Found Changelog entry.")
     else:
-        print("\nThere is no changelog entry found for this version.")
+        print("❌ Changelog entry NOT found.")
 
     if result["community_collections"]:
-        print("\nFound probable community collection usage.\n")
+        print("⚠️ Possible community collection usage found in the following lines.\n")
         print(result["community_collections"])
     else:
-        print("\nThre is no community collection dependency.")
+        print("✅ No community collection usage found.")
 
 
 def find_license(source_dir) -> str:
