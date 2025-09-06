@@ -16,6 +16,12 @@ from typing import List, Tuple, Optional
 import json
 import packaging
 from pprint import pprint
+import re
+
+PACKAGE_INFO = re.compile(
+    r"^(?P<namespace>\w+)-(?P<name>\w+)-(?P<version>[0-9a-zA-Z.+-]+)\.tar\.gz$"
+)
+
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -116,15 +122,9 @@ def main():
     "Entry point"
     parser = argparse.ArgumentParser()
     parser.add_argument("--tarfile", help="Path to the source tarball", required=True)
-    parser.add_argument(
-        "--namespace", help="Namespace of the collection", required=True
-    )
-    parser.add_argument("--name", help="Name of the collection", required=True)
-    parser.add_argument("--version", help="Version of the collection", required=True)
     args = parser.parse_args()
-    namespace = args.namespace
-    collection_name = args.name
-    collection_version = args.version
+    match = PACKAGE_INFO.match(os.path.basename(args.tarfile))
+    namespace, collection_name, collection_version = match.groups()
 
     result = process_collection(
         namespace, collection_name, collection_version, args.tarfile
