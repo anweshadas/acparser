@@ -1,22 +1,21 @@
 "Ansible collection parser for developers."
+# SPDX-License-Identifier: GPL-3.0-or-later
 
-__version__ = "0.3.1"
+__version__ = "1.0.0"
 
-import sys
+import argparse
+import os
+import re
+import subprocess
 import tarfile
 import tempfile
-import os
+import warnings
+from typing import List, Tuple
+
+import packaging
+import requirements
 import yaml
 from identify import identify
-import requirements
-import subprocess
-import warnings
-import argparse
-from typing import List, Tuple, Optional
-import json
-import packaging
-from pprint import pprint
-import re
 
 PACKAGE_INFO = re.compile(
     r"^(?P<namespace>\w+)-(?P<name>\w+)-(?P<version>[0-9a-zA-Z.+-]+)\.tar\.gz$"
