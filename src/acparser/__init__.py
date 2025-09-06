@@ -137,34 +137,38 @@ def main():
             print("Source does not exist in galaxy.")
 
     if result["ansiblecore"]:
-        print(
-            f"{namespace}.{collection_name}:{collection_version} requires ansible-core version {result['ansiblecore']}"
-        )
+        print(f"\n✅ `requires_ansible` {result['ansiblecore']}")
     else:
-        print("`requires_ansible` does not exists.")
+        print("❌ `requires_ansible` does not exists.")
 
     if result["license"]:
-        print(
-            f"\nThe license as mentioned in the {result['license_filename']} file is {result['license']}"
-        )
+        print(f"✅ License found in {result['license_filename']}: {result['license']}")
     else:
-        print("\n`License` does not exists.")
+        print("❌ `License` does not exists.")
     if result["requirement_exists"]:
-        print("\nHere are the requirements for the project.")
+        clean_requirement = True
+
         for data in result["requirement_exists"]:
-            print(f"\n{data}")
+            for value in data[1]:
+                if "<" in value[0] or value[0] == "==":
+                    print(
+                        f"❌ Requirement with upper boundary {data[0]} {value[0]} {value[1]}"
+                    )
+                    clean_requirement = False
+        if clean_requirement:
+            print("✅ Requirements are without upper boundary.")
     else:
-        print("\nThere is no requirements file.")
+        print("✅ No requirements found.")
     if result["changelog_exists"]:
-        print(f"\nThis is the Changelog entry.\n\n{result['changelog_exists']} \n ")
+        print("✅ Found Changelog entry.")
     else:
-        print("\nThere is no changelog entry found for this version.")
+        print("❌ Changelog entry NOT found.")
 
     if result["community_collections"]:
-        print("\nFound probable community collection usage.\n")
+        print("⚠️ Possible community collection usage found in the following lines.\n")
         print(result["community_collections"])
     else:
-        print("\nThre is no community collection dependency.")
+        print("✅ No community collection usage found.")
 
 
 def find_license(source_dir) -> str:
